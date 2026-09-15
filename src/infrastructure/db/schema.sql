@@ -127,11 +127,15 @@ CREATE TABLE IF NOT EXISTS messages (
     room_id      UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     sender_id    UUID REFERENCES users(id) ON DELETE SET NULL,
     content      TEXT,
-    message_type TEXT CHECK (message_type IN ('text', 'image', 'audio', 'video', 'file', 'call', 'system')) DEFAULT 'text',
+    message_type TEXT CHECK (message_type IN ('text', 'image', 'audio', 'video', 'file', 'collection', 'call', 'system')) DEFAULT 'text',
     file_url     TEXT,
     created_at   TIMESTAMP DEFAULT NOW(),
     edited_at    TIMESTAMP,
-    reply_to_id  UUID REFERENCES messages(id) ON DELETE SET NULL
+    reply_to_id  UUID REFERENCES messages(id) ON DELETE SET NULL,
+    -- Only populated on a message that actually mentions someone — see
+    -- src/app/mentions.js for how the server derives and trusts this list.
+    mentions          JSONB NOT NULL DEFAULT '[]'::jsonb,
+    mentions_everyone BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- -----------------------------------------------------------
@@ -144,6 +148,32 @@ CREATE TABLE IF NOT EXISTS message_status (
     status     TEXT CHECK (status IN ('sent', 'delivered', 'read')) DEFAULT 'sent',
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(message_id, user_id)
+);
+
+-- -----------------------------------------------------------
+-- Message reactions (emoji, one per user per message)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS message_reactions (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id    UUID NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+    emoji      TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(message_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_reactions_message ON message_reactions(message_id);
+
+-- -----------------------------------------------------------
+-- Per-user, per-room notification mode ('all' is the default and is stored
+-- as the absence of a row — this table only ever holds exceptions).
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS room_notification_modes (
+    user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    room_id    UUID NOT NULL REFERENCES rooms(id)  ON DELETE CASCADE,
+    mode       TEXT NOT NULL CHECK (mode IN ('mentions', 'none')),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (user_id, room_id)
 );
 
 -- -----------------------------------------------------------
@@ -377,6 +407,43 @@ CREATE TABLE IF NOT EXISTS recording_segments (
     created_at      TIMESTAMP DEFAULT NOW(),
     UNIQUE(call_id, user_id, segment_index)
 );
+
+-- One call-level composite (grid video + mixed audio) — the primary playback
+-- surface, so a viewer plays a single file/timeline instead of N per-user
+-- segment players side by side.
+CREATE TABLE IF NOT EXISTS recording_composites (
+    call_id     UUID PRIMARY KEY REFERENCES calls(id) ON DELETE CASCADE,
+    file_path   TEXT NOT NULL,
+    file_size   BIGINT,
+    file_hash   TEXT,
+    duration_ms INTEGER,
+    width       INTEGER,
+    height      INTEGER,
+    layout      TEXT,
+    format      TEXT,
+    has_video   BOOLEAN NOT NULL DEFAULT TRUE,
+    -- Row-major cell index -> user_id, so a client can label each grid tile.
+    cell_users  JSONB DEFAULT '[]'::jsonb,
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+
+-- Durable journal for the in-memory recording transcode queue — lets a
+-- process restart resume or clean up a job left mid-flight. See
+-- src/infrastructure/db/queries/recordingJobs.js.
+CREATE TABLE IF NOT EXISTS recording_jobs (
+    call_id      UUID PRIMARY KEY REFERENCES calls(id) ON DELETE CASCADE,
+    db_room_id   UUID REFERENCES rooms(id) ON DELETE SET NULL,
+    status       TEXT NOT NULL CHECK (status IN ('queued', 'transcoding', 'done', 'error')),
+    payload      JSONB,
+    attempts     INTEGER NOT NULL DEFAULT 0,
+    error        TEXT,
+    started_at   TIMESTAMP,
+    done_at      TIMESTAMP,
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_recording_jobs_status ON recording_jobs(status);
 
 -- -----------------------------------------------------------
 -- Indexes

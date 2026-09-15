@@ -59,23 +59,23 @@ const MessageQueries = {
    * @param {{ roomId: string, senderId: string, content?: string, messageType?: string, fileUrl?: string }} data
    * @returns {Promise<object>}
    */
-  async create({ roomId, senderId, content, messageType = 'text', fileUrl, replyToId, feedbackId, mentions, mentionsEveryone }) {
+  async create({ roomId, senderId, content, messageType = 'text', fileUrl, replyToId, mentions, mentionsEveryone }) {
     // First insert to get the ID, then encrypt with ID as AAD, then update.
     // This binds the ciphertext to the specific message row (prevents relocation).
-    const baseParams = [roomId, senderId, content || null, messageType, fileUrl || null, replyToId || null, feedbackId || null];
-    // Only a message that actually mentions someone touches the mention
-    // columns (migration 072), so an ordinary message never depends on them.
+    const baseParams = [roomId, senderId, content || null, messageType, fileUrl || null, replyToId || null];
+    // Only a message that actually mentions someone touches the mention columns,
+    // so an ordinary message never depends on them.
     const hasMentions = (Array.isArray(mentions) && mentions.length > 0) || !!mentionsEveryone;
     const { rows } = hasMentions
       ? await db.query(
-        `INSERT INTO messages (room_id, sender_id, content, message_type, file_url, reply_to_id, feedback_id, mentions, mentions_everyone)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)
+        `INSERT INTO messages (room_id, sender_id, content, message_type, file_url, reply_to_id, mentions, mentions_everyone)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8)
          RETURNING *`,
         [...baseParams, JSON.stringify(Array.isArray(mentions) ? mentions : []), !!mentionsEveryone],
       )
       : await db.query(
-        `INSERT INTO messages (room_id, sender_id, content, message_type, file_url, reply_to_id, feedback_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO messages (room_id, sender_id, content, message_type, file_url, reply_to_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
         baseParams,
       );
@@ -165,13 +165,11 @@ const MessageQueries = {
               rm.content      AS reply_to_content_raw,
               rm.file_url     AS reply_to_file_url_raw,
               rm.message_type AS reply_to_type,
-              ru.username     AS reply_to_sender,
-              uf.content      AS feedback_content
+              ru.username     AS reply_to_sender
        FROM messages m
        LEFT JOIN users u ON u.id = m.sender_id
        LEFT JOIN messages rm ON rm.id = m.reply_to_id
        LEFT JOIN users ru ON ru.id = rm.sender_id
-       LEFT JOIN user_feedback uf ON uf.id = m.feedback_id
        WHERE m.room_id = $1 ${whereExtra}
        ORDER BY m.created_at DESC
        LIMIT $${params.length}`,
@@ -237,13 +235,11 @@ const MessageQueries = {
               ) AS reactions,
               rm.content      AS reply_to_content_raw,
               rm.message_type AS reply_to_type,
-              ru.username     AS reply_to_sender,
-              uf.content      AS feedback_content
+              ru.username     AS reply_to_sender
        FROM messages m
        LEFT JOIN users u ON u.id = m.sender_id
        LEFT JOIN messages rm ON rm.id = m.reply_to_id
        LEFT JOIN users ru ON ru.id = rm.sender_id
-       LEFT JOIN user_feedback uf ON uf.id = m.feedback_id
        WHERE m.room_id = $1 AND (
          m.created_at > $2 OR
          m.edited_at > $2 OR
