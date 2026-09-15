@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS users (
     status          TEXT CHECK (status IN ('pending', 'active', 'rejected')) DEFAULT 'pending',
     is_online       BOOLEAN   DEFAULT FALSE,
     last_seen       TIMESTAMP,
+    deleted         BOOLEAN NOT NULL DEFAULT FALSE,
+    deleted_at      TIMESTAMP,
     created_at      TIMESTAMP DEFAULT NOW(),
     password_reset_status TEXT CHECK (password_reset_status IN ('requested', 'allowed', 'admin_set')),
     password_reset_token  TEXT,
@@ -97,6 +99,9 @@ CREATE TABLE IF NOT EXISTS room_participants (
     role      TEXT CHECK (role IN ('admin', 'member')) DEFAULT 'member',
     joined_at TIMESTAMP DEFAULT NOW(),
     left_at   TIMESTAMP,
+    -- Per-participant "clear chat": hides messages before this timestamp for
+    -- this user only. The room and its messages are untouched for everyone else.
+    cleared_at TIMESTAMP,
     UNIQUE(room_id, user_id)
 );
 
@@ -436,6 +441,24 @@ CREATE INDEX IF NOT EXISTS idx_recording_segments_call
 
 CREATE INDEX IF NOT EXISTS idx_recording_segments_user
     ON recording_segments(user_id);
+
+-- -----------------------------------------------------------
+-- Contact requests — lets two users who don't already share a workspace
+-- (or another established relationship) opt in to being able to message
+-- each other, e.g. to reach a superadmin directly.
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS contact_requests (
+    id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    from_user_id  UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    to_user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+    created_at    TIMESTAMP DEFAULT NOW(),
+    responded_at  TIMESTAMP,
+    UNIQUE(from_user_id, to_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_requests_to ON contact_requests(to_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_contact_requests_from ON contact_requests(from_user_id, status);
 
 -- -----------------------------------------------------------
 -- Login audit — security trail of sign-in attempts. Auto-purge rows older
