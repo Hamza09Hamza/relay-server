@@ -279,22 +279,6 @@ CREATE TABLE IF NOT EXISTS ptt_channel_members (
 
 CREATE INDEX IF NOT EXISTS idx_ptt_members_user ON ptt_channel_members(user_id);
 
--- Per-user standby/wake + mute state for a channel. A user can mute or leave
--- a channel on one device without affecting their other devices, but the
--- demo schema keeps this per-user rather than per-device for simplicity.
-CREATE TABLE IF NOT EXISTS ptt_channel_subscriptions (
-    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    channel_id   UUID NOT NULL REFERENCES ptt_channels(id) ON DELETE CASCADE,
-    wake_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    muted        BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at   TIMESTAMP NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (user_id, channel_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_ptt_subscriptions_channel_wake
-    ON ptt_channel_subscriptions(channel_id, wake_enabled) WHERE wake_enabled;
-
 -- Transmission metadata — who held the floor, when, and why it ended.
 -- Audio is opt-in per transmission (audio_file_path IS NULL for most —
 -- recording a walkie-talkie silently would turn a comms feature into
