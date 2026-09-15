@@ -11,6 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS users (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     username        TEXT UNIQUE NOT NULL,
+    full_name       TEXT,
     email           TEXT UNIQUE,
     phone_number    TEXT UNIQUE,
     password        TEXT NOT NULL,
@@ -62,6 +63,8 @@ CREATE TABLE IF NOT EXISTS user_workspaces (
     status       TEXT CHECK (status IN ('pending', 'active', 'suspended', 'rejected')) DEFAULT 'pending',
     accepted_by  UUID REFERENCES users(id) ON DELETE SET NULL,
     accepted_at  TIMESTAMP,
+    suspension_reason TEXT,
+    suspended_at TIMESTAMP,
     created_at   TIMESTAMP DEFAULT NOW(),
     UNIQUE(user_id, workspace_id)
 );
@@ -433,6 +436,23 @@ CREATE INDEX IF NOT EXISTS idx_recording_segments_call
 
 CREATE INDEX IF NOT EXISTS idx_recording_segments_user
     ON recording_segments(user_id);
+
+-- -----------------------------------------------------------
+-- Login audit — security trail of sign-in attempts. Auto-purge rows older
+-- than 90 days with a daily job; not indefinitely retained.
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS login_audit (
+    id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id    UUID REFERENCES users(id) ON DELETE SET NULL,
+    username   TEXT,
+    ip         TEXT,
+    user_agent TEXT,
+    outcome    TEXT NOT NULL CHECK (outcome IN ('success', 'bad_password', 'unknown_user', 'pending', 'rejected')),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_audit_created ON login_audit(created_at);
+CREATE INDEX IF NOT EXISTS idx_login_audit_user ON login_audit(user_id);
 
 -- -----------------------------------------------------------
 -- Refresh tokens (silent re-auth + server-side revocation)
