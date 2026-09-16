@@ -97,3 +97,16 @@ npm run dev   # nodemon, restarts on file changes
 The server listens on `PORT` (default `3000`) and binds to `0.0.0.0` in
 development or `127.0.0.1` behind a reverse proxy otherwise (override with
 `HOST`).
+
+## Testing
+
+```bash
+npm test
+```
+
+Unit tests (`node --test`, no external dependencies) cover the pure-logic
+modules: PTT floor-lease acquisition/renewal/preemption, server-authoritative
+recording-segment derivation, mentions/notification-mode rules, per-socket
+rate limiting, and call/message authorization helpers. They don't touch the
+database or mediasoup — those paths are exercised by running the server
+directly against a real Postgres instance.

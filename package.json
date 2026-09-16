@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "db:init": "node src/infrastructure/db/init.js"
+    "db:init": "node src/infrastructure/db/init.js",
+    "test": "node --test test/unit/*.test.js"
   },
   "nodemonConfig": {
     "ignore": [
