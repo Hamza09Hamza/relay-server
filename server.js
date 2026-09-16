@@ -4969,10 +4969,10 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Filiale/contact isolation is an authorization boundary, so validate it
-    // before either a live socket ring or an offline push is emitted. The
-    // previous online fast path rang first and cancelled later, which still
-    // exposed an unrelated account to a brief incoming-call interruption.
+    // Workspace/contact isolation is an authorization boundary, so validate it
+    // before the ring is emitted. The previous fast path rang first and
+    // cancelled later, which still exposed an unrelated account to a brief
+    // incoming-call interruption.
     if (resolvedTargetUserId) {
       const permission = await checkCallPermission(user.userId, resolvedTargetUserId);
       if (!permission.allowed) {
