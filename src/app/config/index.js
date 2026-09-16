@@ -25,16 +25,9 @@ const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || '60d';
 // Refresh-token lifetime in days (sliding: rotated and re-dated on each use).
 const REFRESH_TOKEN_TTL_DAYS = parseInt(process.env.REFRESH_TOKEN_TTL_DAYS, 10) || 180;
 
-// How long a paired device may go unseen before it's purged from
-// user_devices (and, with it, its approval). Matches ACCESS_TOKEN_TTL by
-// default — a device we'd purge is one whose access token has likely gone
-// stale anyway. Purge is lazy (runs on next listForUser call), not cron-based.
-const STALE_DEVICE_TTL_DAYS = parseInt(process.env.STALE_DEVICE_TTL_DAYS, 10) || 60;
-
 module.exports = {
   JWT_SECRET,
   BCRYPT_ROUNDS,
   ACCESS_TOKEN_TTL,
   REFRESH_TOKEN_TTL_DAYS,
-  STALE_DEVICE_TTL_DAYS,
 };

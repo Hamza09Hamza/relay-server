@@ -6,10 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "db:init": "node src/infrastructure/db/init.js",
-    "migrate": "node scripts/migrate.js",
-    "migrate:status": "node scripts/migrate.js status",
-    "test": "node --test --test-concurrency=1 test/unit/*.test.js"
+    "db:init": "node src/infrastructure/db/init.js"
   },
   "nodemonConfig": {
     "ignore": [
